@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+    <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>TOREX LOGGER OVEN</title>
+            <style>
+                * {
+                    box-sizing: border-box;
+                }
+                :root {
+                    --bg: #03060a;
+                    --panel: #071018;
+                    --cyan: #00f6ff;
+                    --blue: #1769ff;
+                    --red: #ff1744;
+                    --white: #e8fbff;
+                    --muted: #4c6874;
+                    --grid: rgba(0, 246, 255, 0.055);
+                }
+                body {
+                    margin: 0;
+                    min-height: 100vh;
+                    overflow-x: hidden;
+                    background:
+                        radial-gradient(circle at 50% -20%, rgba(0, 246, 255, 0.12), transparent 35%),
+                        radial-gradient(circle at 100% 100%, rgba(255, 23, 68, 0.08), transparent 30%),
+                        var(--bg);
+                    color: var(--white);
+                    font-family:
+                        "Segoe UI", Arial, sans-serif;
+                }
+                body::before {
+                    content: "";
+                    position: fixed;
+                    inset: 0;
+                    pointer-events: none;
+                    background-image:linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+                    background-size: 45px 45px;
+                    mask-image:linear-gradient(to bottom, black, transparent 90%);
+                }
+                body::after {
+                    content: ""; 
+                    position: fixed;
+                    left: 0;
+                    right: 0;
+                    height: 1px;
+                    top: -10px;
+                    pointer-events: none;
+                    background: linear-gradient(
+                            90deg,
+                            transparent,
+                            rgba(0,246,255,0.35),
+                            transparent
+                    );
+                    box-shadow: 0 0 15px rgba(0,246,255,0.3);
+                    animation: scanline 7s linear infinite;
+                    z-index: 20;
+                }
+                @keyframes scanline {
+                    0% {
+                        top: -10px;
+                    }
+                    100% {
+                        top: 100%;
+                    }
+                }
+                .app {
+                    width: min(
+                        1400px,
+                        calc(100% - 50px)
+                    );
+                    margin: auto;
+                    padding: 45px 0;
+                }
+                header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 30px;
+                }
+                .brand {
+                    position: relative;
+                }
+                .brand-small {
+                    color: var(--muted);
+                    font-size: 10px;
+                    letter-spacing: 5px;
+                    margin-bottom: 8px;
+                }
+                .logo {
+                    margin: 0;
+                    font-family: "Arial Black", Arial, sans-serif;
+                    font-size: clamp(30px, 5vw, 62px);
+                    line-height: 0.95;
+                    letter-spacing: 5px;
+                    text-transform: uppercase;
+                    background:
+                        linear-gradient(
+                            90deg,
+                            var(--blue),
+                            var(--cyan),
+                            #ffffff,
+                            var(--red),
+                            var(--blue)
+                        );
+                    background-size: 400% 100%;
+                    -webkit-background-clip:
+                        text;
+                    background-clip:
+                        text;
+                    color:
+                        transparent;
+                    animation:
+                        logoFlow 5s linear infinite;
+                    filter:
+                        drop-shadow(
+                            0 0 15px
+                            rgba(0,246,255,0.18)
+                        );
+                }
+                @keyframes logoFlow {
+                    0% {
+                        background-position: 0%;
+                    }
+                    100% {
+                        background-position: 400%;
+                    }
+                }
+                .system {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    border: 1px solid rgba(0,246,255,0.25);
+                    padding: 11px 17px;
+                    background: rgba(0,246,255,0.035);
+                    clip-path: polygon(
+                            8px 0,
+                            100% 0,
+                            100% calc(100% - 8px),
+                            calc(100% - 8px) 100%,
+                            0 100%,
+                            0 8px
+                    );
+                }
+                .system-dot {
+                    width: 8px;
+                    height: 8px;
+                    background: var(--cyan);
+                    border-radius: 50%;
+                    box-shadow: 0 0 12px var(--cyan);
+                    animation: blink 1.2s infinite;
+                }
+                .system-text {
+                    font-family: monospace;
+                    color: var(--cyan);
+                    font-size: 11px;
+                    letter-spacing: 2px;
+                }
+                @keyframes blink {
+                    50% {
+                        opacity: 0.35;
+                    }
+                }
+                .dashboard {
+                    display: grid;
+                    grid-template-columns: minmax(0, 1fr) 340px;
+                    gap: 20px;
+                }
+                .panel {
+                    position: relative;
+                    background: linear-gradient(
+                            145deg,
+                            rgba(8,18,27,0.96),
+                            rgba(3,9,14,0.96)
+                    );
+                    border: 1px solid rgba(0,246,255,0.13);
+                    overflow: hidden;
+                }
+                .panel::before {
+                    content: "";
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 80px;
+                    height: 2px;
+                    background: var(--cyan);
+                    box-shadow: 0 0 15px var(--cyan);
+                }
+                .panel::after {
+                    content: "";
+                    position: absolute;
+                    right: 0;
+                    bottom: 0;
+                    width: 80px;
+                    height: 2px;
+                    background: var(--red);
+                    box-shadow: 0 0 15px var(--red);
+                }
+                .graph-panel {
+                    min-height: 580px;
+                    padding: 28px 30px;
+                }
+                .panel-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 25px;
+                }
+                .panel-title {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    color: var(--cyan);
+                    font-family: monospace;
+                    font-size: 12px;
+                    letter-spacing: 3px;
+                }
+                .panel-title::before {
+                    content: "◆";
+                    color: var(--red);
+                    font-size: 8px;
+                    text-shadow: 0 0 10px var(--red);
+                }
+                .live {
+                    font-family: monospace;
+                    color: var(--red);
+                    font-size: 10px;
+                    letter-spacing: 2px;
+                }
+                .live::before {
+                    content: "●";
+                    margin-right: 7px;
+                    text-shadow: 0 0 10px var(--red);
+                }
+                .chart-container {
+                    position: relative;
+                    height: 470px;
+                    border: 1px solid rgba(0,246,255,0.07);
+                    background:
+                        linear-gradient(
+                            rgba(0,246,255,0.025) 1px,
+                            transparent 1px
+                        ),
+                        linear-gradient(
+                            90deg,
+                            rgba(0,246,255,0.025) 1px,
+                            transparent 1px
+                        );
+                    background-size: 50px 50px;
+                }
+                canvas {
+                    width: 100%;
+                    height: 100%;
+                    display: block;
+                }
+                .corner {
+                    position: absolute;
+                    width: 15px;
+                    height: 15px;
+                    border-color: var(--cyan);
+                    border-style: solid;
+                    opacity: 0.7;
+                    pointer-events: none;
+                }
+                .corner.tl {
+                    top: -1px;
+                    left: -1px;
+                    border-width: 2px 0 0 2px;
+                }
+                .corner.tr {
+                    top: -1px;
+                    right: -1px;
+                    border-width: 2px 2px 0 0;
+                }
+                .corner.bl {
+                    bottom: -1px;
+                    left: -1px;
+                    border-width: 0 0 2px 2px;
+                }
+                .corner.br {
+                    bottom: -1px;
+                    right: -1px;
+                    border-width: 0 2px 2px 0;
+                }
+                .temperature-panel {
+                    min-height: 580px;
+                    padding: 30px;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                }
+                .label {
+                    font-family: monospace;
+                    font-size: 10px;
+                    letter-spacing: 3px;
+                    color: var(--muted);
+                }
+                .temp-area {
+                    margin-top: 40px;
+                }
+                .temp-value {
+                    display: flex;
+                    align-items: flex-start;
+                }
+                #value_temp {
+                    margin: 0;
+                    font-family: monospace;
+                    font-size: clamp(65px, 7vw, 105px);
+                    line-height: 0.85;
+                    letter-spacing: -8px;
+                    color: var(--white);
+                    text-shadow:
+                        0 0 10px
+                        rgba(0,246,255,0.8),
+                        0 0 35px 
+                        rgba(0,246,255,0.25);
+                }
+                .unit {
+                    margin-left: 10px;
+                    color: var(--cyan);
+                    font-family: monospace;
+                    font-size: 25px;
+                }
+                .temp-bar {
+                    position: relative;
+                    height: 5px;
+                    margin-top: 30px;
+                    background: #101c24;
+                    overflow: hidden;
+                }
+                .temp-bar::after {
+                    content: "";
+                    position: absolute;
+                    inset: 0;
+                    background:
+                        linear-gradient(
+                            90deg,
+                            var(--blue),
+                            var(--cyan),
+                            var(--red)
+                        );
+                    background-size: 200% 100%;
+                    animation: barFlow 3s linear infinite;
+                }
+                @keyframes barFlow {
+                    0% {
+                        background-position: 0%;
+                    }
+                    100% {
+                        background-position: 200%;
+                    }
+                }
+                .data {
+                    margin-top: 45px;
+                    border-top: 1px solid rgba(0,246,255,0.08);
+                }
+                .data-row {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 15px 0;
+                    border-bottom: 1px solid rgba(0,246,255,0.06);
+                }
+                .data-key {
+                    color: var(--muted);
+                    font-family: monospace;
+                    font-size: 10px;
+                    letter-spacing: 1px;
+                }
+                .data-value {
+                    color: #b8e9ef;
+                    font-family: monospace;
+                    font-size: 11px;
+                }
+                .connection {
+                    position: relative;
+                    padding: 17px;
+                    border: 1px solid rgba(0,246,255,0.12);
+                    background: rgba(0,246,255,0.025);
+                }
+                .connection-top {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
+                .connection-icon {
+                    color: var(--cyan);
+                    font-size: 18px;
+                    text-shadow: 0 0 12px var(--cyan);
+                }
+                .connection-title {
+                    color: var(--cyan);
+                    font-family: monospace;
+                    font-size: 11px;
+                    letter-spacing: 2px;
+                }
+                .connection-description {
+                    margin-top: 7px;
+                    color: var(--muted);
+                    font-family: monospace;
+                    font-size: 9px;
+                }
+                footer {
+                    display: flex;
+                    justify-content: space-between;
+                    margin-top: 15px;
+                    color: #263d46;
+                    font-family: monospace;
+                    font-size: 9px;
+                    letter-spacing: 2px;
+                }
+                @media (max-width: 900px) {
+                    .app {
+                        width: calc(100% - 30px);
+                        padding-top: 25px;
+                    }
+                    header {
+                        align-items: flex-start;
+                        flex-direction: column;
+                        gap: 20px;
+                    }
+                    .dashboard {
+                        grid-template-columns: 1fr;
+                    }
+                    .graph-panel,
+                    .temperature-panel {
+                        min-height: auto;
+                    }
+                    .chart-container {
+                        height: 360px;
+                    }
+                    .temperature-panel {
+                        min-height: 450px;
+                    }
+                }
+                @media (max-width: 500px) {
+                    .logo {
+                        font-size: 27px;
+                        letter-spacing: 2px;
+                    }
+                    .graph-panel,
+                    .temperature-panel {
+
+                        padding: 20px;
+                    }
+                    .chart-container {
+                        height: 300px;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="app">
+                <header>
+                    <div class="brand">
+                        <div class="brand-small">
+                            INDUSTRIAL MONITORING SYSTEM // 01
+                        </div>
+                        <h1 class="logo">
+                            TOREX LOGGER OVEN
+                        </h1>
+                    </div>
+                    <div class="system">
+                        <span class="system-dot"></span>
+                        <span class="system-text">
+                            SYSTEM ONLINE
+                        </span>
+                    </div>
+                </header>
+                <main class="dashboard">
+                    <section class="panel graph-panel">
+                        <div class="panel-header">
+                            <div class="panel-title">
+                                TEMPERATURE TELEMETRY
+                            </div>
+
+                            <div class="live">
+                                LIVE
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <span class="corner tl"></span>
+                            <span class="corner tr"></span>
+                            <span class="corner bl"></span>
+                            <span class="corner br"></span>
+                            <canvas
+                                id="temperatureChart">
+                            </canvas>
+                        </div>
+                    </section>
+                    <section class="panel temperature-panel">
+                        <div>
+                            <div class="label">
+                                CURRENT TEMPERATURE
+                            </div>
+                            <div class="temp-area">
+                                <div class="temp-value">
+                                    <h2 id="value_temp">
+                                        0
+                                    </h2>
+                                    <span class="unit">
+                                        °C
+                                    </span>
+                                </div>
+                                <div class="temp-bar"></div>
+                            </div>
+                            <div class="data">
+                                <div class="data-row">
+                                    <span class="data-key">
+                                        SENSOR
+                                    </span>
+                                    <span class="data-value">
+                                        OVEN_TEMP
+                                    </span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-key">
+                                        UPDATE
+                                    </span>
+                                    <span
+                                        class="data-value"
+                                        id="lastUpdate">
+                                        --
+                                    </span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-key">
+                                        SAMPLES
+                                    </span>
+                                    <span
+                                        class="data-value"
+                                        id="sampleCount">
+                                        0
+                                    </span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-key">
+                                        INTERVAL
+                                    </span>
+                                    <span class="data-value">
+                                        1000 ms
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="connection">
+                            <div class="connection-top">
+                                <div class="connection-icon">
+                                    ◉
+                                </div>
+                                <div class="connection-title">
+                                    LOGGER CONNECTED
+                                </div>
+                            </div>
+                            <div class="connection-description">
+                                RECEIVING REAL-TIME SENSOR DATA
+                            </div>
+                        </div>
+                    </section>
+                </main>
+                <footer>
+                    <span>
+                        TOREX // LOGGER OVEN
+                    </span>
+                    <span>
+                        REAL-TIME TELEMETRY
+                    </span>
+                </footer>
+            </div>
+            <script>
+                const temperatureHistory = [];
+                const timeHistory = [];
+                const MAX_POINTS = 60;
+
+                const canvas = document.getElementById("temperatureChart");
+                const ctx = canvas.getContext("2d");
+
+                function resizeCanvas() {
+                    const rect = canvas.getBoundingClientRect();
+
+                    const dpr = window.devicePixelRatio || 1;
+                    
+                    canvas.width = rect.width * dpr;
+                    canvas.height = rect.height * dpr;
+
+                    ctx.setTransform(dpr,0,0,dpr,0,0);
+                    drawChart();
+                }
+
+                function drawChart() {
+                    const width = canvas.clientWidth;
+                    const height = canvas.clientHeight;
+
+                    ctx.clearRect(0,0,width,height);
+
+                    if (temperatureHistory.length === 0) {
+                        return;
+                    }
+
+                    let minTemp = Math.min(...temperatureHistory);
+
+                    let maxTemp = Math.max(...temperatureHistory);
+
+                    if (minTemp === maxTemp) {
+                        minTemp -= 5;
+                        maxTemp += 5;
+                    }
+
+                    const left = 55;
+                    const right = 20;
+                    const top = 25;
+                    const bottom = 35;
+
+                    const graphWidth = width - left - right;
+
+                    const graphHeight = height - top - bottom;
+
+                    ctx.font = "10px monospace";
+
+                    ctx.fillStyle = "#38525d";
+
+                    ctx.strokeStyle = "rgba(0,246,255,0.07)";
+
+                    ctx.lineWidth = 1;
+
+                    const rows = 5;
+                    for (let i = 0; i <= rows; i++) {
+                        const y = top + (graphHeight / rows) * i;
+
+                        ctx.beginPath();
+                        ctx.moveTo(left, y);
+                        ctx.lineTo(width - right, y);
+                        
+                        ctx.stroke();
+                        
+                        const value = maxTemp - ((maxTemp - minTemp) / rows) * i;
+                        ctx.fillText(value.toFixed(1) + "°", 7, y + 4);
+                    }
+
+                    if (temperatureHistory.length < 2) {
+                        return;
+                    }
+
+                    const points = [];
+
+                    for (let i = 0; i < temperatureHistory.length; i++) {
+                        const x = left + (i / Math.max(MAX_POINTS - 1, 1)) * graphWidth;
+
+                        const normalized = (temperatureHistory[i] - minTemp) / (maxTemp - minTemp);
+                        const y = top + graphHeight - normalized * graphHeight;
+
+                        points.push({x,y});
+                    }
+
+                    const gradient = ctx.createLinearGradient(0, top, 0, height);
+
+                    gradient.addColorStop(0,"rgba(0,246,255,0.20)");
+                    gradient.addColorStop(0.5,"rgba(23,105,255,0.08)");
+                    gradient.addColorStop(1,"rgba(0,246,255,0)");
+
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, height - bottom);
+
+                    for (const point of points) {
+                        ctx.lineTo(point.x,point.y);
+                    }
+
+                    ctx.lineTo(points[points.length - 1].x, height - bottom);
+
+                    ctx.closePath();
+                    ctx.fillStyle = gradient;
+
+                    ctx.fill();
+
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.lineTo(points[i].x, points[i].y);
+                    }
+                    ctx.lineWidth = 2;
+
+                    ctx.lineJoin = "round";
+
+                    ctx.lineCap = "round";
+
+                    ctx.strokeStyle = "#00f6ff";
+                    ctx.shadowColor = "#00f6ff";
+
+                    ctx.shadowBlur = 15;
+
+                    ctx.stroke();
+
+                    ctx.shadowBlur = 0;
+                    const last = points[points.length - 1];
+
+                    ctx.beginPath();
+                    ctx.arc(last.x, last.y, 10, 0, Math.PI * 2);
+
+                    ctx.strokeStyle ="rgba(0,246,255,0.2)";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.arc(last.x, last.y, 4, 0, Math.PI * 2);
+
+                    ctx.fillStyle = "#ffffff";
+
+                    ctx.shadowColor = "#00f6ff";
+
+                    ctx.shadowBlur = 15;
+
+                    ctx.fill();
+
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = "#38525d";
+
+                    ctx.font ="9px monospace";
+                    
+                    const labels = 5;
+
+                    for (let i = 0; i <= labels; i++) {
+                        const index =
+                            Math.min(Math.floor((temperatureHistory.length - 1) * (i / labels)), timeHistory.length - 1);
+                        
+                        if (index < 0) {
+                            continue;
+                        }
+
+                        const x = left + (index / Math.max(MAX_POINTS - 1, 1)) * graphWidth;
+                        ctx.fillText(timeHistory[index] || "", x - 20, height - 10);
+                    }
+                }
+
+                window.addEventListener("resize", resizeCanvas);
+                resizeCanvas();
+
+                async function getTemp() {
+                    try {
+                        const response = await fetch('/get_temp');
+
+                        if (!response.ok) {
+                            throw new Error('HTTP error!');
+                        }
+                        const data = await response.json();
+                        
+                        document.getElementById('value_temp').textContent = data;
+                        temperatureHistory.push(Number(data));
+
+                        const now = new Date();
+
+                        timeHistory.push(
+                            now.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit",second: "2-digit"})
+                        );
+
+                        if (temperatureHistory.length > MAX_POINTS) {
+                            temperatureHistory.shift();
+                            timeHistory.shift();
+                        }
+                        document.getElementById("lastUpdate").textContent = now.toLocaleTimeString();
+                        
+                        document.getElementById("sampleCount").textContent = temperatureHistory.length;
+                        drawChart();
+                    } catch (error) {
+                        console.error(error);
+                    }
+                }
+                setInterval(() => {
+                    getTemp();
+                }, 1000);
+
+                function syncTime() {
+                    const timestamp = Math.floor(Date.now() / 1000);
+
+                    fetch(`/get_time?timestamp=${timestamp}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(
+                                "Time synchronization failed"
+                            );
+                        }
+                        return response.text();
+                    }).then(data => {
+                        console.log(
+                            "ESP32:",
+                            data
+                        );
+                    }).catch(error => {
+
+                        console.error(
+                            "Time synchronization error:",
+                            error
+                        );
+                    });
+                }
+                syncTime();
+            </script>
+        </body>
+    </html>
