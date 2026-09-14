@@ -13,6 +13,97 @@
     SemaphoreHandle_t gui_semaphore;
 // -> settings_task_esp
 
+// -> UART
+  #define RX_PIN 22
+  #define TX_PIN 27
+  #define BAUD_RATE 115200
+
+  volatile float temp = 0.0;
+  volatile bool flag_read = false;
+  hw_timer_t* timer_data = NULL;
+
+  void IRAM_ATTR change_flag() {
+    flag_read = true;
+  }
+
+  void initial_timer_read() {
+    timer_data = timerBegin(1000000);
+    timerAttachInterrupt(timer_data, &change_flag);
+    timerAlarm(timer_data, 1000000, true, 0);
+    timerStart(timer_data);
+  }
+
+
+  void initial_port() {
+    Serial1.begin(BAUD_RATE, SERIAL_8N1, RX_PIN, TX_PIN);
+    delay(500);
+  }
+
+// -> UART
+
+// -> FS
+  File sensor_file;
+
+  const char* sensor_dir = "/sensor";
+  const char* sensor_file_path = "/sensor/exp.csv";
+
+  bool sensor_recording = false;
+
+  bool open_sensor_file() {
+    if (!LittleFS.exists(sensor_dir)) {
+        if (!LittleFS.mkdir(sensor_dir)) {
+            Serial.println("ERROR: Cannot create /sensor");
+            return false;
+        }
+    } 
+
+    if (LittleFS.exists(sensor_file_path)) {
+      LittleFS.remove(sensor_file_path);
+    }
+
+    sensor_file = LittleFS.open(sensor_file_path, FILE_WRITE);
+    if (!sensor_file) {
+        Serial.println("ERROR: Cannot open sensor file");
+        return false;
+    }
+    sensor_file.println("timestamp,temperature");
+    sensor_file.flush();
+    sensor_recording = true;
+
+    Serial.println("Sensor file opened");
+    return true;
+  }
+
+  void close_sensor_file() {
+    if (sensor_file) {
+      sensor_file.flush();
+      sensor_file.close();
+    }
+
+    sensor_recording = false;
+    Serial.println("Sensor file closed");
+  }
+
+  void write_sensor_data() {
+    if (!sensor_recording || !sensor_file) {
+      return;
+    }
+
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) {
+      return;
+    }
+
+    char timestamp[20];
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", &timeinfo);
+    
+    sensor_file.print(timestamp);
+    sensor_file.print(",");
+    sensor_file.println(temp);
+    sensor_file.flush();
+  }
+// -> FS
+
 // -> settings_time
   String initial_time() {
     struct tm timeinfo;
@@ -30,35 +121,6 @@
     tzset();
   }
 // -> settings_time
-
-// -> UART
-
-  #define RX_PIN 22
-  #define TX_PIN 27
-  #define BAUD_RATE 115200
-
-  volatile float temp = 0.0;
-  volatile bool flag_read = false;
-  hw_timer_t* timer_data = NULL;
-
-  void IRAM_ATTR change_flag() {
-    flag_read = true;
-  }
-
-  void initial_timer_read() {
-    timer_data = timerBegin(1000000);
-    timerAttachInterrupt(timer_data, &change_flag);
-    timerAlarm(timer_data, 10000, true, 0);
-    timerStart(timer_data);
-  }
-
-
-  void initial_port() {
-    Serial1.begin(BAUD_RATE, SERIAL_8N1, RX_PIN, TX_PIN);
-    delay(500);
-  }
-
-// -> UART
 
 // -> server
   AsyncWebServer server(80); 
@@ -100,19 +162,36 @@
       time_t timestamp = timestamp_str.toInt();
 
       struct timeval tv;
-
       tv.tv_sec = timestamp;
       tv.tv_usec = 0;
-
       settimeofday(&tv, nullptr);
-
       request -> send(200, "text/plain", "Time synchronized");
+    });
+
+    server.on("/result_download", HTTP_GET, [](AsyncWebServerRequest* request) {
+      if (!LittleFS.exists(sensor_file_path)) {
+        request -> send(404, "text/plain", "Sensor file not found");
+        return;
+      }
+      request -> send(LittleFS, sensor_file_path, "text/csv", true);
     });
     server.begin();
   }
 // -> server
 
 // -> GUI
+    #define COLOR_BG 0x070A0F
+    #define COLOR_PANEL 0x0D1219
+    #define COLOR_PANEL_2 0x111820
+    #define COLOR_CYAN 0x00E5FF
+    #define COLOR_CYAN_D 0x087F8F
+    #define COLOR_MAGENTA 0xFF00AA
+    #define COLOR_GREEN 0x00FF88
+    #define COLOR_RED 0xFF1744
+    #define COLOR_TEXT 0xD7F9FF
+    #define COLOR_MUTED 0x60808A
+    #define COLOR_GRID 0x18313A
+
     static lv_disp_draw_buf_t draw_buf;
     static lv_color_t buf[320*10];
     static lv_disp_drv_t disp_drv;
@@ -208,6 +287,17 @@
         return btn;
     }
 
+    void update_chart_scale(float temp) {
+      float min_temp = temp - 50.0f;
+      float max_temp = temp + 50.0f;
+
+      if (min_temp < 0) {
+        min_temp = 0;
+      }
+
+      lv_chart_set_range(chart_temp, LV_CHART_AXIS_PRIMARY_Y, (lv_coord_t)min_temp, (lv_coord_t)max_temp);
+    }
+
     lv_obj_t* create_chart(lv_obj_t* scr, int width, int height, lv_align_t align, int x_pos, int y_pos) {
       lv_obj_t* chart = lv_chart_create(scr);
       
@@ -235,6 +325,7 @@
 
       lv_obj_set_style_shadow_width(indicator, 0, 0);
       lv_obj_set_style_pad_all(indicator, 0, 0);
+      lv_obj_set_style_pad_all(indicator, 0, LV_PART_MAIN);
 
       lv_obj_align(indicator, align, x_pos, y_pos);
       return indicator;
@@ -300,17 +391,26 @@
     }
 
     void start_experiment() {
+      if (state_exp) {
+        return;
+      }
+      if (!open_sensor_file()) {
+        Serial.println("Experiment NOT started");
+        return;
+      }
       state_exp = true;
       exp_start_time = millis();
-
       lv_label_set_text(active_status_lbl, "Active");
       lv_obj_set_style_border_color(indicator, lv_palette_main(LV_PALETTE_GREEN), 0);
     }
 
     void stop_experiment() {
+      if (!state_exp) {
+        return;
+      }
       state_exp = false;
       exp_stop_time = millis() - exp_start_time;
-
+      close_sensor_file();
       lv_label_set_text(active_status_lbl, "Not Active");
       lv_obj_set_style_border_color(indicator, lv_palette_main(LV_PALETTE_RED), 0);
     }
@@ -450,6 +550,7 @@
 
             if (xTaskGetTickCount() - last_chart_update >= pdMS_TO_TICKS(100)) {
               last_chart_update = xTaskGetTickCount();
+              update_chart_scale(temp);
               lv_chart_set_next_value(chart_temp, series_temp, (lv_coord_t) temp);
             }
 
@@ -490,6 +591,9 @@ void setup() {
 
   // -> littleFS
     LittleFS.begin(true);
+    if (!LittleFS.exists(sensor_dir)) {
+      LittleFS.mkdir(sensor_dir);
+    }
   // -> littleFS
 
   initial_port();
@@ -506,6 +610,9 @@ void loop() {
       String request = Serial1.readStringUntil('\n');
       temp = request.toFloat();
       Serial.println(temp);
+      if (state_exp && sensor_recording) {
+        write_sensor_data();
+      }
     }
   }
 }
